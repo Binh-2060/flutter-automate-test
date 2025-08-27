@@ -51,7 +51,7 @@ jobs:
       run: |
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/test-suite" \
-          -F "file=@android/app/build/outputs/apk/debug/app-debug-androidTest.apk")
+          -F "file=@build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
         echo "$response" | jq -r .test_suite_url > test_suite_url.txt
       shell: bash
 

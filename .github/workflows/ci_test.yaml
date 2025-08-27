@@ -26,6 +26,13 @@ jobs:
         flutter-version: '3.24.5'
         channel: 'stable'
 
+    - name: Cache Flutter dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.pub-cache
+        key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+
     - name: Install Flutter dependencies
       run: flutter pub get
 
@@ -33,13 +40,13 @@ jobs:
       run: flutter build apk --debug
 
     - name: Build test APK
-      run: |
-        cd android
-        ./gradlew app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
+      working-directory: android
+      run: ./gradlew app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
 
     - name: Upload app to BrowserStack
       id: upload-app
       run: |
+        set -e
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/app" \
           -F "file=@build/app/outputs/flutter-apk/app-debug.apk")
@@ -49,15 +56,17 @@ jobs:
     - name: Upload test suite to BrowserStack
       id: upload-test
       run: |
+        set -e
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/test-suite" \
-          -F "file=@build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
+          -F "file=@build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
         echo "$response" | jq -r .test_suite_url > test_suite_url.txt
       shell: bash
 
     - name: Start BrowserStack test build
       id: start-build
       run: |
+        set -e
         app_url=$(cat app_url.txt)
         test_suite_url=$(cat test_suite_url.txt)
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
@@ -74,16 +83,19 @@ jobs:
         echo "build_id=$build_id" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Fetch test results
+    - name: Wait for BrowserStack test completion
       run: |
+        set -e
         build_id=${{ steps.start-build.outputs.build_id }}
-        sleep 30  # Wait for tests to complete (adjust based on test duration)
-        response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
-          -X GET "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/builds/$build_id")
-        status=$(echo "$response" | jq -r .status)
-        echo "Build status: $status"
-        if [ "$status" != "completed" ]; then
-          echo "Tests not finished yet. Check BrowserStack dashboard."
-          exit 1
-        fi
-      shell: bash
+        status=""
+        echo "Waiting for BrowserStack test build $build_id to complete..."
+        while [ "$status" != "completed" ]; do
+          response=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
+            -X GET "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/builds/$build_id")
+          status=$(echo "$response" | jq -r .status)
+          echo "Current status: $status"
+          if [ "$status" != "completed" ]; then
+            sleep 30
+          fi
+        done
+        echo "BrowserStack build completed!"

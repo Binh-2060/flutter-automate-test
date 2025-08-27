@@ -40,8 +40,7 @@ jobs:
       run: flutter build apk --debug
 
     - name: Build test APK
-      working-directory: android
-      run: ./gradlew app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
+      run: ./android/gradlew -p android app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
 
     - name: Upload app to BrowserStack
       id: upload-app

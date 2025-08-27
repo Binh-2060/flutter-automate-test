@@ -41,6 +41,10 @@ jobs:
 
     - name: Build test APK
       run: ./android/gradlew -p android app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
+    - name: Debug APK outputs
+      run: |
+        echo "Listing build/app/outputs/apk/androidTest/debug"
+        ls -lah build/app/outputs/apk/androidTest/debug || true
 
     - name: Upload app to BrowserStack
       id: upload-app
@@ -58,7 +62,7 @@ jobs:
         set -e
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/test-suite" \
-          -F "file=@build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
+          -F "file=@build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
         echo "$response" | jq -r .test_suite_url > test_suite_url.txt
       shell: bash
 

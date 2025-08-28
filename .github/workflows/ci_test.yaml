@@ -41,9 +41,12 @@ jobs:
 
     - name: Build test APK
       run: ./android/gradlew -p android app:assembleDebugAndroidTest -Ptarget=integration_test/app_test.dart
+
     - name: Debug APK outputs
       run: |
-        echo "Listing build/app/outputs/apk/androidTest/debug"
+        echo "=== Debug: App APK ==="
+        ls -lah build/app/outputs/flutter-apk || true
+        echo "=== Debug: Test APK ==="
         ls -lah build/app/outputs/apk/androidTest/debug || true
 
     - name: Upload app to BrowserStack
@@ -53,6 +56,7 @@ jobs:
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/app" \
           -F "file=@build/app/outputs/flutter-apk/app-debug.apk")
+        echo "Upload App Response: $response"
         echo "$response" | jq -r .app_url > app_url.txt
       shell: bash
 
@@ -63,6 +67,7 @@ jobs:
         response=$(curl -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
           -X POST "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/test-suite" \
           -F "file=@build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
+        echo "Upload Test Suite Response: $response"
         echo "$response" | jq -r .test_suite_url > test_suite_url.txt
       shell: bash
 
@@ -81,7 +86,8 @@ jobs:
             "buildName": "Flutter GitHub Actions Build"
           }' \
           -H "Content-Type: application/json")
-        build_id=$(echo "$response" | jq -r .build_id)
+        echo "Start Build Response: $response"
+        build_id=$(echo "$response" | jq -r .buildId)
         echo "Build ID: $build_id"
         echo "build_id=$build_id" >> $GITHUB_OUTPUT
       shell: bash
@@ -95,10 +101,11 @@ jobs:
         while [ "$status" != "completed" ]; do
           response=$(curl -s -u "${{ secrets.BROWSERSTACK_USERNAME }}:${{ secrets.BROWSERSTACK_ACCESS_KEY }}" \
             -X GET "https://api-cloud.browserstack.com/app-automate/flutter-integration-tests/v2/android/builds/$build_id")
+          echo "Status Response: $response"
           status=$(echo "$response" | jq -r .status)
           echo "Current status: $status"
           if [ "$status" != "completed" ]; then
             sleep 30
           fi
         done
-        echo "BrowserStack build completed!"
+        echo "✅ BrowserStack build completed!"
